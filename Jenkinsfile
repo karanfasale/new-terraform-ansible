@@ -63,7 +63,7 @@ pipeline {
             steps {
                 echo 'Verifying deployment...'
                 sh '''
-                    curl -s http://$(cat ${ANSIBLE_INVENTORY_FILE} | grep -oP '\d+\.\d+\.\d+\.\d+'):80 | head -n 20
+                    curl -s http://$(cat ${ANSIBLE_INVENTORY_FILE} | grep -oP '\\d+\\.\\d+\\.\\d+\\.\\d+'):80 | head -n 20
                 '''
             }
         }
