@@ -10,12 +10,6 @@ pipeline {
 
     stages {
 
-        stage('Clone Repository') {
-            steps {
-                git 'https://github.com/karanfasale/devops-terraform-ansible.git'
-            }
-        }
-
         stage('Terraform Init') {
             steps {
                 sh '''
