@@ -1,69 +1,61 @@
 pipeline {
     agent any
 
-    parameters {
-        string(name: 'ANSIBLE_INVENTORY_FILE', defaultValue: '/path/to/ansible/hosts', description: 'Ansible inventory file path')
-        string(name: 'ANSIBLE_PLAYBOOK', defaultValue: 'site.yml', description: 'Ansible playbook to run')
-    }
-
     environment {
-        GITHUB_CREDENTIALS = credentials('github-ssh')
-        ANSIBLE_HOST_KEY_CHECKING = 'False'
+        TF_DIR = "terraform"
+        ANSIBLE_DIR = "ansible"
+        INVENTORY = "ansible/inventory/inventory.ini"
+        PLAYBOOK = "ansible/playbooks/install_apache_php.yml"
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Clone Repository') {
             steps {
-                echo 'Checking out code from GitHub...'
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/YOUR_USERNAME/YOUR_REPO.git',
-                        credentialsId: 'github-ssh'
-                    ]]
-                ])
+                git 'https://github.com/karanfasale/devops-terraform-ansible.git'
             }
         }
 
-        stage('Detect Changes') {
+        stage('Terraform Init') {
             steps {
-                script {
-                    echo 'Detecting changes...'
-                    sh '''
-                        git diff HEAD~1 HEAD --name-only | grep -E "ansible|config" || echo "No ansible changes detected"
-                    '''
-                }
-            }
-        }
-
-        stage('Validate Ansible') {
-            steps {
-                echo 'Validating Ansible syntax...'
                 sh '''
-                    ansible-playbook --syntax-check ${ANSIBLE_PLAYBOOK}
+                cd $TF_DIR
+                terraform init
                 '''
             }
         }
 
-        stage('Run Ansible Playbook') {
+        stage('Terraform Apply') {
             steps {
-                echo 'Running Ansible playbook...'
                 sh '''
-                    ansible-playbook \
-                        -i ${ANSIBLE_INVENTORY_FILE} \
-                        -u ec2-user \
-                        --private-key=/path/to/your/private/key.pem \
-                        ${ANSIBLE_PLAYBOOK}
+                cd $TF_DIR
+                terraform apply -auto-approve
                 '''
             }
         }
 
-        stage('Verify Deployment') {
+        stage('Verify Inventory') {
             steps {
-                echo 'Verifying deployment...'
                 sh '''
-                    curl -s http://$(cat ${ANSIBLE_INVENTORY_FILE} | grep -oP '\\d+\\.\\d+\\.\\d+\\.\\d+'):80 | head -n 20
+                echo "Inventory file:"
+                cat $INVENTORY
+                '''
+            }
+        }
+
+        stage('Run Ansible') {
+            steps {
+                sh '''
+                ansible-playbook -i $INVENTORY $PLAYBOOK
+                '''
+            }
+        }
+
+        stage('Post Deployment Check') {
+            steps {
+                sh '''
+                echo "Checking Apache status on servers..."
+                ansible -i $INVENTORY all -m shell -a "systemctl status apache2 | grep active"
                 '''
             }
         }
@@ -71,10 +63,10 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo "✅ Deployment Successful!"
         }
         failure {
-            echo 'Pipeline failed!'
+            echo "❌ Deployment Failed!"
         }
     }
 }
